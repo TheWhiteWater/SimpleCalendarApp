@@ -7,14 +7,13 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.nhaarman.mockitokotlin2.mock
 import com.nhaarman.mockitokotlin2.verify
-import nz.co.redice.simplecalendarapp.data.CalendarDate
-import nz.co.redice.simplecalendarapp.data.CalendarDateAndEvents
+import junit.framework.Assert.assertTrue
 import nz.co.redice.simplecalendarapp.data.Event
+import nz.co.redice.simplecalendarapp.data.EventTagJoin
+import nz.co.redice.simplecalendarapp.data.Tag
 import nz.co.redice.simplecalendarapp.db.CalendarDao
 import nz.co.redice.simplecalendarapp.db.CalendarDatabase
 import org.junit.After
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -45,108 +44,58 @@ class CalendarDaoTest {
         database.close()
     }
 
-    @Test
-    fun getAllDatesReturnsEmptyList() {
-        val testObserver: Observer<List<CalendarDate>> = mock()
-        dao.getAllDates().observeForever(testObserver)
-        verify(testObserver).onChanged(emptyList())
-    }
 
     @Test
-    fun getAllEventsReturnsEmptyList() {
-        val testObserver: Observer<List<Event>> = mock()
-        dao.getAllEvents().observeForever(testObserver)
-        verify(testObserver).onChanged(emptyList())
-    }
+    fun insertTagsInsertsTags() {
+        val tag1 = Tag("tag1")
+        val tag2 = Tag("tag2")
+        dao.insertTag(tag1, tag2)
 
-    @Test
-    fun insertDateInsertsCalendarDates() {
-        val date1 = CalendarDate(1)
-        val date2 = CalendarDate(2)
-        dao.insertCalendarDate(date1, date2)
+        val testObserver: Observer<List<Tag>> = mock()
+        dao.getAllTags().observeForever(testObserver)
 
-        val testObserver: Observer<List<CalendarDate>> = mock()
-        dao.getAllDates().observeForever(testObserver)
-
-        val listClass = ArrayList::class.java as Class<ArrayList<CalendarDate>>
+        val listClass = ArrayList::class.java as Class<ArrayList<Tag>>
         val argumentCaptor = ArgumentCaptor.forClass(listClass)
 
         verify(testObserver).onChanged(argumentCaptor.capture())
         val captureArgument = argumentCaptor.value
-        assertTrue(captureArgument.containsAll(listOf(date1, date2)))
+        assertTrue(captureArgument.containsAll(listOf(tag1, tag2)))
     }
 
-    @Test
-    fun insertEventInsertsEvents() {
-        val date1 = CalendarDate(1)
-        dao.insertCalendarDate(date1)
 
-        val event1 = Event(1,1,1, "title", "body")
-        val event2 = Event(2,1,1, "title", "body")
+    @Test
+    fun getEventsByTagsRetrievesEvents() {
+        val tag1 = Tag("tag1")
+        dao.insertTag(tag1)
+
+        val event1 = Event(1,1,1,"event1")
+        val event2 = Event(2,1,1,"event2")
         dao.insertEvent(event1, event2)
 
-        val testObserver: Observer<List<Event>> = mock()
-        dao.getAllEvents().observeForever(testObserver)
+        val eventTagConstraint1 = EventTagJoin(event1.eventId, tag1.name)
+        val eventTagConstraint2 = EventTagJoin(event2.eventId, tag1.name)
+        dao.insertEventTagConstraint(eventTagConstraint1, eventTagConstraint2)
 
-        val listClass = ArrayList::class.java as Class<ArrayList<Event>>
-        val argumentCaptor = ArgumentCaptor.forClass(listClass)
-
-        verify(testObserver).onChanged(argumentCaptor.capture())
-        val captureArgument = argumentCaptor.value
-        assertTrue(captureArgument.containsAll(listOf(event1, event2)))
+        assertTrue(dao.getEventsByTag(tag1.name).containsAll(listOf(event1, event2)))
     }
-
 
     @Test
-    fun getAllEventsOnSelectedDateReturnsProperEvents() {
-        val date1 = CalendarDate(1)
-        dao.insertCalendarDate(date1)
+    fun getTagsByEventIdRetrievesTags() {
+        val tag1 = Tag("tag1")
+        val tag2 = Tag("tag2")
+        dao.insertTag(tag1, tag2)
 
-        val event1 = Event(1,1,1, "title", "body")
-        val event2 = Event(2,1,1, "title", "body")
-        dao.insertEvent(event1, event2)
+        val event1 = Event(1,1,1,"event1")
+        dao.insertEvent(event1)
 
-        val testObserver: Observer<CalendarDateAndEvents> = mock()
-        dao.getAllEventsOnSelectedDate(1).observeForever(testObserver)
-        val argumentCaptor = ArgumentCaptor.forClass(CalendarDateAndEvents::class.java)
+        val eventTagConstraint1 = EventTagJoin(event1.eventId, tag1.name)
+        val eventTagConstraint2 = EventTagJoin(event1.eventId, tag2.name)
+        dao.insertEventTagConstraint(eventTagConstraint1, eventTagConstraint2)
 
-        verify(testObserver).onChanged(argumentCaptor.capture())
-        val captureArgument = argumentCaptor.value
-        assertTrue(captureArgument.events.containsAll(listOf(event1, event2)))
-    }
-
-
-    @Test
-    fun clearDatesDeletesAllDates() {
-        val date1 = CalendarDate(1)
-        val date2 = CalendarDate(2)
-        dao.insertCalendarDate(date1, date2)
-        dao.clearDates()
-
-        val testObserver: Observer<List<CalendarDate>> = mock()
-        dao.getAllDates().observeForever(testObserver)
-        verify(testObserver).onChanged(emptyList())
+        assertTrue(dao.getTagsByEventId(event1.eventId).containsAll(listOf(tag1, tag2)))
     }
 
 
 
-    @Test
-    fun deleteDateDeletesSpecificDate() {
-        val date1 = CalendarDate(1)
-        val date2 = CalendarDate(2)
-        val date3 = CalendarDate(3)
-        dao.insertCalendarDate(date1, date2, date3)
 
-        dao.deleteDate(date2)
-
-        val testObserver: Observer<List<CalendarDate>> = mock()
-        dao.getAllDates().observeForever(testObserver)
-
-        val listClass = ArrayList::class.java as Class<ArrayList<CalendarDate>>
-        val argumentCaptor = ArgumentCaptor.forClass(listClass)
-
-        verify(testObserver).onChanged(argumentCaptor.capture())
-        val captureArgument = argumentCaptor.value
-        assertFalse(captureArgument.contains(date2))
-    }
 }
